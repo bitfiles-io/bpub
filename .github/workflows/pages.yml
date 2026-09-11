@@ -28,7 +28,7 @@ jobs:
           mkdir -p _site
           cp -r dist _site/dist
           sed 's#\.\./dist/#./dist/#' examples/index.html > _site/index.html
-          echo "bitfiles.io" > _site/CNAME
+          echo "bpub.bitfiles.io" > _site/CNAME
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
