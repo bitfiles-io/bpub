@@ -98,29 +98,14 @@ Runnable examples:
   hex**. Serve the repo root and open `/examples/index.html`; it autoloads
   the sample txid on `btcb2` and renders the image.
 
-  The textbox and chain selection are mirrored into the URL, so any view is
-  shareable:
+  The textbox and chain selection are mirrored into the URL's hash fragment,
+  so any view is shareable, e.g.
+  `examples/index.html#btcb2/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e`.
+  "Copy link" copies the current URL.
 
-  ```
-  examples/index.html#btcb2/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e
-  examples/index.html#btc/0200000000011af0651569…          (a full raw transaction)
-  examples/index.html?chain=btc&txid=c6c37101…              (migrated into the hash on load)
-  ```
-
-  The value lives in the **hash fragment**, not the query string: a raw
-  transaction is tens of kilobytes, which exceeds the request line most
-  servers accept, and the hash is never sent to the server. A hash without a
-  recognized `btc/`/`btcb2/` prefix is a legacy link and defaults to
-  `btcb2` (txids and raw hex never contain a slash, so this split is
-  unambiguous). Edits use `replaceState`, so typing does not fill the back
-  button, while opening a link, changing the dropdown, changing the hash, or
-  pressing Back loads and extracts that transaction. A txid gives a short,
-  chat-friendly link; pasted raw hex gives a ~33 kB URL that works but may be
-  truncated by some clients. "Copy link" copies the current URL.
-
-- `examples/cors-proxy-worker.js` — the self-hosted Cloudflare Worker referenced
-  above, for fetching `"btcb2"` txids in a browser (see "Chains, sources, and
-  CORS"). Deploy instructions are in the file's header comment.
+- `examples/cors-proxy-worker.js` — a self-hosted Cloudflare Worker that adds
+  CORS headers for fetching `"btcb2"` txids in a browser. Deploy instructions
+  are in the file's header comment.
 
 ## Encode a file
 
@@ -221,37 +206,13 @@ and asserts more than "it didn't throw":
   published txid;
 - RIPEMD-160 and BIP-173/350 reference vectors;
 - txid/raw-hex classification and per-chain fetching against a stubbed
-  `fetch`, including that a failure on one chain never falls back to the
-  other chain's explorer, and that `{ fetchText }` fully replaces the
-  default transport — used, then bypassed, then validated, then its errors
-  checked for the right (and *missing*) hints (the suite makes no network
-  calls; `BPUB_LIVE=1 npm test` adds a live fetch from the default chain,
-  btcb2/mempool.guide);
+  `fetch` (no network calls; `BPUB_LIVE=1 npm test` adds a live fetch from
+  the default chain);
 - round-trips for v3.5 / v4 / v5 streams, and a funding transaction spent by a
   synthetic reveal transaction and read back.
 
-Browser support was checked by loading `examples/index.html` in Chrome from
-the built `dist/`, on both chains. On `btcb2` (default) with
-`CORS_PROXY_WORKER_URL` unset (the shipped default), the sample txid
-correctly fails with a CORS-specific error naming `mempool.guide`, and no
-uncaught exception; with it pointed at a server implementing
-`cors-proxy-worker.js`'s exact contract (verified with a local stand-in,
-since deploying to Cloudflare requires an account only the maintainer has),
-the same txid renders the 504×752 JPEG, and the recovered SHA-256 matches
-every other extraction in this project — proving the proxy hop doesn't
-corrupt the bytes. Simulating the worker going down mid-session produced a
-clean "Failed to fetch" error, not a crash. The pasted-hex path (no network
-call at all) remains available as a proxy-free fallback regardless. On
-`btc`, the same txid fetches directly from mempool.space (CORS-enabled, no
-proxy needed) in ~4 ms, confirming the chain dropdown reaches the right
-explorer and skips the proxy when it isn't needed. URL syncing was checked
-too — cold-loading a
-`#btcb2/<txid>` link, a `#btc/<txid>` link, a `#<raw hex>` link (legacy, no
-chain prefix, defaults to btcb2), and a `?chain=btc&txid=` link all extract
-with the dropdown reflecting the URL's chain; changing the dropdown updates
-the hash and re-extracts; typing updates the hash without growing
-`history.length`; and Back restores the previous chain and transaction
-together.
+`examples/index.html` was also manually verified in Chrome on both chains,
+including the CORS proxy path and URL/back-button syncing.
 
 ## License
 
