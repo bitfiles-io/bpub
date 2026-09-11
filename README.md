@@ -20,17 +20,26 @@ parts of the encode side.
 ## Install
 
 ```sh
+npm install bitfiles-bpub
+```
+
+<details>
+<summary>Developing this repo</summary>
+
+```sh
 npm install   # dev dependencies only
 npm run build # emits dist/
 npm test
 ```
+
+</details>
 
 ## Extract a file from a reveal transaction
 
 By txid, letting the library fetch the transaction:
 
 ```ts
-import { recoverFromTxid } from "bpub";
+import { recoverFromTxid } from "bitfiles-bpub";
 
 const { meta, content, source } = await recoverFromTxid(
   "c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e",
@@ -40,7 +49,7 @@ const { meta, content, source } = await recoverFromTxid(
 Or from raw hex you already have:
 
 ```ts
-import { recoverFromRawTransaction, bytesToHex } from "bpub";
+import { recoverFromRawTransaction, bytesToHex } from "bitfiles-bpub";
 
 const { meta, content, controlPubkey } = await recoverFromRawTransaction(rawTxHex);
 
@@ -59,7 +68,7 @@ call means the bytes are intact.
 `resolveRawTransaction` accepts **either** form, so UIs need only one input:
 
 ```ts
-import { resolveRawTransaction, recoverFromRawTransaction } from "bpub";
+import { resolveRawTransaction, recoverFromRawTransaction } from "bitfiles-bpub";
 
 const { hex, source } = await resolveRawTransaction(userInput); // txid or raw hex
 const { meta, content } = await recoverFromRawTransaction(hex);
@@ -104,7 +113,7 @@ library needing to know its URL scheme or response shape (some proxies
 return the raw body directly; others wrap it in JSON):
 
 ```ts
-import { recoverFromTxid } from "bpub";
+import { recoverFromTxid } from "bitfiles-bpub";
 
 async function viaMyProxy(url: string): Promise<string> {
   const res = await fetch(`https://my-proxy.example.workers.dev${new URL(url).pathname}`);
@@ -181,7 +190,7 @@ Runnable examples:
 ## Encode a file
 
 ```ts
-import { buildInscription, buildFundingTransaction } from "bpub";
+import { buildInscription, buildFundingTransaction } from "bitfiles-bpub";
 
 // Redeem scripts + P2WSH scriptPubKeys, ready to fund however you like.
 const inscription = await buildInscription(fileBytes, {
