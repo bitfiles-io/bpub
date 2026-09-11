@@ -1,5 +1,5 @@
 {
-  "name": "bitfiles-bpub",
+  "name": "@bitfiles/bpub",
   "version": "0.1.1",
   "description": "TypeScript port of the bpub Python library: read and write BPUB data inscriptions embedded in Bitcoin transactions. Isomorphic (Node + browser), zero runtime dependencies.",
   "type": "module",
@@ -15,6 +15,10 @@
     "dist",
     "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitfiles-io/bpub.git"
+  },
   "sideEffects": false,
   "keywords": [
     "bitcoin",
@@ -24,6 +28,9 @@
     "segwit"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
