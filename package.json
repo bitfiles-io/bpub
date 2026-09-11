@@ -1,5 +1,5 @@
 {
-  "name": "bpub",
+  "name": "bitfiles-bpub",
   "version": "0.1.0",
   "description": "TypeScript port of the bpub Python library: read and write BPUB data inscriptions embedded in Bitcoin transactions. Isomorphic (Node + browser), zero runtime dependencies.",
   "type": "module",
