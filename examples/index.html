@@ -12,7 +12,9 @@
         max-width: 46rem;
         padding: 2rem 1.25rem 4rem;
       }
+      .heading { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
       h1 { font-size: 1.35rem; margin-bottom: 0.25rem; }
+      .heading a { color: #6b7280; font-size: 0.85rem; }
       p.lede { color: #6b7280; margin-top: 0; }
       label { display: block; margin-bottom: 0.3rem; }
       textarea {
@@ -45,7 +47,10 @@
     </style>
   </head>
   <body>
-    <h1>bpub viewer</h1>
+    <div class="heading">
+      <h1>bpub viewer</h1>
+      <a href="https://github.com/dev1ns/bpub" target="_blank" rel="noopener">GitHub</a>
+    </div>
     <p class="lede">
       Extracts a file embedded in a Bitcoin transaction, entirely in the browser.
     </p>
