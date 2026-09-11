@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>bpub viewer</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+        margin: 0 auto;
+        max-width: 46rem;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 { font-size: 1.35rem; margin-bottom: 0.25rem; }
+      p.lede { color: #6b7280; margin-top: 0; }
+      label { display: block; margin-bottom: 0.3rem; }
+      textarea {
+        width: 100%;
+        height: 5.5rem;
+        font: 12px/1.4 ui-monospace, monospace;
+        padding: 0.6rem;
+        box-sizing: border-box;
+        resize: vertical;
+      }
+      .controls { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0; flex-wrap: wrap; }
+      .controls label { display: inline; margin: 0; }
+      button, select { font: inherit; padding: 0.4rem 0.9rem; cursor: pointer; }
+      #status { margin: 1rem 0 0; }
+      #status.error { color: #b91c1c; white-space: pre-wrap; }
+      #source { color: #6b7280; font-size: 0.85rem; margin: 0.25rem 0 0; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin-top: 1.25rem; }
+      dt { color: #6b7280; }
+      dd { margin: 0; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+      #output img { max-width: 100%; margin-top: 1rem; border-radius: 6px; }
+      pre.text-preview {
+        background: rgba(127, 127, 127, 0.12);
+        padding: 0.75rem;
+        border-radius: 6px;
+        max-height: 20rem;
+        overflow: auto;
+        white-space: pre-wrap;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>bpub viewer</h1>
+    <p class="lede">
+      Extracts a file embedded in a Bitcoin transaction, entirely in the browser.
+    </p>
+
+    <label for="input">Transaction id or raw reveal transaction (hex)</label>
+    <textarea
+      id="input"
+      spellcheck="false"
+      placeholder="c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e &#10;— or —&#10;0200000000011af0651569…"
+    ></textarea>
+
+    <div class="controls">
+      <label for="chain">Chain</label>
+      <select id="chain">
+        <option value="btcb2" selected>bitcoin-blake2b (btcb2)</option>
+        <option value="btc">bitcoin (btc)</option>
+      </select>
+      <button id="extract" type="button">Extract</button>
+      <button id="load-sample" type="button">Load sample txid</button>
+      <button id="copy-link" type="button">Copy link</button>
+    </div>
+
+    <div id="status"></div>
+    <p id="source"></p>
+    <div id="output"></div>
+
+    <script type="module">
+      import {
+        bytesToHex,
+        DEFAULT_CHAIN,
+        isChain,
+        isTxid,
+        recoverFromRawTransaction,
+        resolveRawTransaction,
+      } from "../dist/index.js";
+
+      const SAMPLE_TXID = "c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e";
+
+      // Fill this in after deploying examples/cors-proxy-worker.js as your own
+      // Cloudflare Worker (free, ~2 minutes, see that file's header comment
+      // for deploy steps), e.g. "https://bpub-cors-proxy.example.workers.dev".
+      // Left empty, "btcb2" txid lookups fall back to a direct fetch, which
+      // is CORS-blocked in browsers (mempool.guide sends no
+      // Access-Control-Allow-Origin) — paste raw hex instead in that case.
+      // Free anonymous public CORS proxies (corsproxy.io, api.allorigins.win)
+      // were tried first but both turned out unreliable in practice: one now
+      // requires a paid API key, the other intermittently times out. A
+      // self-hosted worker removes that dependency on someone else's uptime.
+      const CORS_PROXY_WORKER_URL = "";
+
+      const inputEl = document.querySelector("#input");
+      const chainEl = document.querySelector("#chain");
+      const statusEl = document.querySelector("#status");
+      const sourceEl = document.querySelector("#source");
+      const outputEl = document.querySelector("#output");
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle("error", isError);
+      }
+
+      // --- shareable URLs ---------------------------------------------------
+      // The value (and chain) live in the hash fragment, not the query string:
+      // a raw transaction is tens of kilobytes, which exceeds what servers
+      // accept in a request line, and the hash is never sent to the server.
+      // Format: #<chain>/<value>, e.g. #btcb2/<txid> or #btc/<raw hex>.
+      // Splitting on the first "/" is unambiguous — a txid is 64 hex chars and
+      // raw tx hex is all hex, so neither can ever contain a slash. A hash
+      // with no recognized "btc/"/"btcb2/" prefix is a legacy link and
+      // defaults to DEFAULT_CHAIN ("btcb2").
+
+      const normalize = (value) => value.trim().replace(/\s+/g, "");
+
+      function readUrl() {
+        if (location.hash.length > 1) {
+          const raw = normalize(decodeURIComponent(location.hash.slice(1)));
+          const idx = raw.indexOf("/");
+          if (idx > 0 && isChain(raw.slice(0, idx))) {
+            return { chain: raw.slice(0, idx), value: raw.slice(idx + 1) };
+          }
+          return { chain: null, value: raw };
+        }
+        // Also accept ?chain=&tx=/?txid= so hand-written links work; it is
+        // migrated into the hash on load.
+        const params = new URLSearchParams(location.search);
+        const chainParam = params.get("chain");
+        return {
+          chain: chainParam && isChain(chainParam) ? chainParam : null,
+          value: normalize(params.get("tx") ?? params.get("txid") ?? ""),
+        };
+      }
+
+      function writeUrl(value, chain) {
+        const normalized = normalize(value);
+        const target = normalized
+          ? `${location.pathname}#${chain}/${encodeURIComponent(normalized)}`
+          : location.pathname;
+        if (location.pathname + location.search + location.hash !== target) {
+          // replaceState, so typing does not fill up the back button.
+          history.replaceState(null, "", target);
+        }
+      }
+
+      // Relay a mempool.guide API URL through the self-hosted worker
+      // (examples/cors-proxy-worker.js): swap the origin, keep the path — the
+      // worker only ever serves that same path back from mempool.guide with
+      // CORS headers added, so no query-string wrapping/unwrapping is needed.
+      async function fetchViaOwnWorker(url) {
+        const path = new URL(url).pathname;
+        const res = await fetch(CORS_PROXY_WORKER_URL.replace(/\/+$/, "") + path);
+        const text = await res.text();
+        if (!res.ok) throw new Error(`CORS proxy worker HTTP ${res.status}: ${text.slice(0, 120)}`.trim());
+        return text;
+      }
+
+      async function extract() {
+        outputEl.innerHTML = "";
+        sourceEl.textContent = "";
+
+        const value = inputEl.value.trim();
+        const chain = chainEl.value;
+        writeUrl(value, chain);
+        if (!value) return setStatus("Enter a transaction id or raw transaction hex.", true);
+
+        try {
+          let resolved;
+          if (isTxid(value)) {
+            const useWorker = chain === "btcb2" && CORS_PROXY_WORKER_URL;
+            setStatus(`Fetching transaction from ${chain}…`);
+            resolved = await resolveRawTransaction(value, {
+              chain,
+              fetchText: useWorker ? fetchViaOwnWorker : undefined,
+            });
+            sourceEl.textContent = useWorker
+              ? `Transaction fetched from ${resolved.source} (${resolved.chain}) via your CORS proxy worker.`
+              : `Transaction fetched from ${resolved.source} (${resolved.chain}).`;
+          } else {
+            setStatus("Decoding…");
+            resolved = await resolveRawTransaction(value, { chain });
+            sourceEl.textContent = "Decoded from the pasted raw transaction.";
+          }
+
+          const started = performance.now();
+          const { meta, content, controlPubkey, inputs } =
+            await recoverFromRawTransaction(resolved.hex);
+          const elapsed = Math.round(performance.now() - started);
+
+          setStatus(
+            `Recovered BPUB v${meta.bpubVersion}: ${content.length} bytes ` +
+              `from ${inputs.length} inputs in ${elapsed} ms.`,
+          );
+          render(meta, content, controlPubkey);
+        } catch (error) {
+          setStatus(`Failed: ${error.message}`, true);
+        }
+      }
+
+      function render(meta, content, controlPubkey) {
+        const rows = {
+          filename: meta.filename ?? "(none)",
+          mime: meta.mime ?? "(none)",
+          size: `${meta.size} bytes`,
+          sha256: bytesToHex(meta.sha),
+          bpub_id: meta.bpubId ? bytesToHex(meta.bpubId) : "(none)",
+          control_pubkey: bytesToHex(controlPubkey),
+        };
+        const dl = document.createElement("dl");
+        for (const [key, value] of Object.entries(rows)) {
+          const dt = document.createElement("dt");
+          dt.textContent = key;
+          const dd = document.createElement("dd");
+          dd.textContent = value;
+          dl.append(dt, dd);
+        }
+        outputEl.append(dl);
+
+        const mime = meta.mime ?? "application/octet-stream";
+        const url = URL.createObjectURL(new Blob([content], { type: mime }));
+
+        if (mime.startsWith("image/")) {
+          const img = document.createElement("img");
+          img.src = url;
+          img.alt = meta.filename ?? "recovered image";
+          img.id = "recovered-image";
+          outputEl.append(img);
+        } else if (mime.startsWith("text/") || mime === "application/json") {
+          const pre = document.createElement("pre");
+          pre.className = "text-preview";
+          pre.textContent = new TextDecoder().decode(content);
+          outputEl.append(pre);
+        }
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = meta.filename ?? "bpub.bin";
+        link.textContent = `Download ${meta.filename ?? "file"}`;
+        const paragraph = document.createElement("p");
+        paragraph.append(link);
+        outputEl.append(paragraph);
+      }
+
+      document.querySelector("#extract").addEventListener("click", extract);
+
+      document.querySelector("#load-sample").addEventListener("click", () => {
+        inputEl.value = SAMPLE_TXID;
+        chainEl.value = "btcb2"; // the sample txid is native to btcb2
+        writeUrl(SAMPLE_TXID, chainEl.value);
+        setStatus("Sample txid loaded. Press Extract.");
+      });
+
+      document.querySelector("#copy-link").addEventListener("click", async () => {
+        writeUrl(inputEl.value, chainEl.value);
+        try {
+          await navigator.clipboard.writeText(location.href);
+          setStatus("Link copied to the clipboard.");
+        } catch {
+          setStatus(`Copy this link: ${location.href}`);
+        }
+      });
+
+      chainEl.addEventListener("change", () => {
+        writeUrl(inputEl.value, chainEl.value);
+        if (inputEl.value.trim()) extract();
+      });
+
+      // Keep the URL in step with the textbox as it is edited, debounced so a
+      // 33 kB paste is not re-encoded on every keystroke.
+      let urlTimer;
+      inputEl.addEventListener("input", () => {
+        clearTimeout(urlTimer);
+        urlTimer = setTimeout(() => writeUrl(inputEl.value, chainEl.value), 250);
+      });
+
+      inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) extract();
+      });
+
+      // A shared link, or back/forward, loads and extracts that transaction.
+      window.addEventListener("hashchange", () => {
+        const { chain, value } = readUrl();
+        const effectiveChain = chain ?? DEFAULT_CHAIN;
+        const changed = value !== normalize(inputEl.value) || effectiveChain !== chainEl.value;
+        if (value && changed) {
+          inputEl.value = value;
+          chainEl.value = effectiveChain;
+          extract();
+        }
+      });
+
+      // Autoload from the URL, falling back to the sample transaction.
+      const initial = readUrl();
+      chainEl.value = initial.chain ?? DEFAULT_CHAIN;
+      inputEl.value = initial.value || SAMPLE_TXID;
+      await extract();
+    </script>
+  </body>
+</html>

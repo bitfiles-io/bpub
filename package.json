@@ -1,0 +1,40 @@
+{
+  "name": "bpub",
+  "version": "0.1.0",
+  "description": "TypeScript port of the bpub Python library: read and write BPUB data inscriptions embedded in Bitcoin transactions. Isomorphic (Node + browser), zero runtime dependencies.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "bitcoin",
+    "bpub",
+    "inscription",
+    "p2wsh",
+    "segwit"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test 'test/*.test.ts'",
+    "serve": "node --version >/dev/null && npx --yes http-server . -p 8099 -c-1"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3"
+  }
+}
