@@ -179,7 +179,16 @@
               chain,
               fetchText: useWorker ? fetchViaOwnWorker : undefined,
             });
-            sourceEl.textContent = `Transaction fetched from ${resolved.source} (${resolved.chain}).`;
+            sourceEl.replaceChildren(
+              "Transaction fetched from ",
+              Object.assign(document.createElement("a"), {
+                href: `${resolved.source}/tx/${resolved.txid}`,
+                target: "_blank",
+                rel: "noopener noreferrer",
+                textContent: resolved.source,
+              }),
+              ` (${resolved.chain}).`,
+            );
           } else {
             setStatus("Decoding…");
             resolved = await resolveRawTransaction(value, { chain });
