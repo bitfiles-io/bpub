@@ -7,6 +7,7 @@ import { p2pkh, Transaction as ScureTransaction } from "@scure/btc-signer";
 
 import {
   addressFromOwnerH160,
+  bytesToHex,
   buildFundingTransaction,
   buildInscription,
   buildOwnerRedeemScript,
@@ -15,6 +16,7 @@ import {
   ownerH160FromAddress,
   p2wpkhScriptPubKey,
   p2wshScriptPubKey,
+  prevTxidHex,
   recoverFromTransaction,
   signFundingTransaction,
   signOwnerTransferTransaction,
@@ -23,6 +25,18 @@ import {
 } from "../src/index.ts";
 
 const OWNER_ADDRESS = "bc1q6au5md4j677d98ug4kpgy03ggq63a5f694d94m";
+
+/**
+ * Previous txids as an independent parser displays them. bpub's own parser can't be the only check:
+ * a byte-order mistake made symmetrically on both sides still round-trips.
+ */
+function spentTxids(rawHex: string): string[] {
+  const tx = ScureTransaction.fromRaw(Buffer.from(rawHex, "hex"), {
+    allowUnknownInputs: true,
+    allowUnknownOutputs: true,
+  });
+  return Array.from({ length: tx.inputsLength }, (_, i) => bytesToHex(tx.getInput(i).txid!));
+}
 
 test("signRevealTransaction produces a transaction recoverFromTransaction can decode", async () => {
   const controlPrivateKey = randomPrivateKeyBytes();
@@ -59,6 +73,8 @@ test("signRevealTransaction produces a transaction recoverFromTransaction can de
   }
   assert.match(signed.txid, /^[0-9a-f]{64}$/);
   assert.ok(signed.feeSats > 0);
+  assert.deepEqual(spentTxids(signed.rawHex), inputs.map((input) => input.txid));
+  assert.deepEqual(signed.transaction.inputs.map(prevTxidHex), inputs.map((input) => input.txid));
 
   const recovered = await recoverFromTransaction(signed.transaction);
   assert.equal(recovered.meta.filename, "signed.txt");
@@ -104,7 +120,7 @@ test("signOwnerTransferTransaction produces a cryptographically valid, decodable
   const redeemScript = buildOwnerRedeemScript(bpubId, ownerH160);
   const scriptPubKey = await p2wshScriptPubKey(redeemScript);
 
-  const utxo = { txid: "22".repeat(32), vout: 0, valueSats: 10_000 };
+  const utxo = { txid: "0123456789abcdef".repeat(4), vout: 0, valueSats: 10_000 };
 
   const signed = await signOwnerTransferTransaction({
     bpubId,
@@ -119,12 +135,14 @@ test("signOwnerTransferTransaction produces a cryptographically valid, decodable
   assert.equal(witness.length, 3);
   assert.deepEqual(witness[1], ownerPubkey);
   assert.deepEqual(witness[2], redeemScript);
+  assert.deepEqual(spentTxids(signed.rawHex), [utxo.txid]);
+  assert.equal(prevTxidHex(signed.transaction.inputs[0]!), utxo.txid);
 
   // Cryptographic check: the witness signature actually verifies against the
   // BIP-143 sighash and the owner's pubkey, not just structurally shaped right.
   const verifyTx = new ScureTransaction({ allowUnknownInputs: true, allowUnknownOutputs: true });
   verifyTx.addInput({
-    txid: signed.transaction.inputs[0]!.prevTxid,
+    txid: utxo.txid,
     index: signed.transaction.inputs[0]!.prevIndex,
     witnessUtxo: { amount: BigInt(utxo.valueSats), script: scriptPubKey },
   });
@@ -152,7 +170,7 @@ test("signFundingTransaction signs the single P2WPKH input of an unsigned fundin
   const fundingPubkey = pubECDSA(fundingPrivateKey, true);
   const controlPubkey = pubECDSA(randomPrivateKeyBytes(), true);
 
-  const utxo = { txid: "33".repeat(32), vout: 0, valueSats: 200_000 };
+  const utxo = { txid: "fedcba9876543210".repeat(4), vout: 0, valueSats: 200_000 };
   const funding = await buildFundingTransaction({
     data: utf8ToBytes("fund and sign".repeat(20)),
     mime: "text/plain",
@@ -173,11 +191,14 @@ test("signFundingTransaction signs the single P2WPKH input of an unsigned fundin
   assert.deepEqual(witness[1], fundingPubkey);
   assert.equal(signed.feeSats, funding.feeSats);
   assert.deepEqual(signed.transaction.outputs, funding.transaction.outputs);
+  assert.deepEqual(spentTxids(funding.rawHex), [utxo.txid]);
+  assert.deepEqual(spentTxids(signed.rawHex), [utxo.txid]);
+  assert.equal(prevTxidHex(signed.transaction.inputs[0]!), utxo.txid);
 
   const spendScriptPubKey = p2wpkhScriptPubKey(await hash160(fundingPubkey));
   const verifyTx = new ScureTransaction();
   verifyTx.addInput({
-    txid: signed.transaction.inputs[0]!.prevTxid,
+    txid: utxo.txid,
     index: signed.transaction.inputs[0]!.prevIndex,
     witnessUtxo: { amount: BigInt(utxo.valueSats), script: spendScriptPubKey },
   });

@@ -7,6 +7,10 @@
  * translation to/from BPUB's own `Transaction`/`TxInput`/`TxOutput` shape
  * (`value`/`prevTxid`/`prevIndex` as plain numbers and internal-order bytes),
  * which the rest of this library and its public API are built around.
+ *
+ * Byte order: scure's `txid` fields are display order (it reverses them on the
+ * wire), while `TxInput.prevTxid` is internal order, so every crossing between
+ * the two reverses.
  */
 
 import { RawTx } from "@scure/btc-signer";
@@ -63,7 +67,7 @@ export function deserializeTransaction(raw: Uint8Array | string): Transaction {
   return {
     version: decoded.version,
     inputs: decoded.inputs.map((input, i) => ({
-      prevTxid: input.txid,
+      prevTxid: reverseBytes(input.txid),
       prevIndex: input.index,
       scriptSig: input.finalScriptSig,
       sequence: input.sequence,
@@ -91,7 +95,7 @@ export function serializeTransaction(tx: Transaction): Uint8Array {
     version: tx.version,
     segwitFlag: includeWitness,
     inputs: tx.inputs.map((input) => ({
-      txid: input.prevTxid,
+      txid: reverseBytes(input.prevTxid),
       index: input.prevIndex,
       finalScriptSig: input.scriptSig,
       sequence: input.sequence,

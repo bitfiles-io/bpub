@@ -20,7 +20,7 @@
 import { Transaction as ScureTransaction, SigHash } from "@scure/btc-signer";
 import { pubECDSA, signECDSA } from "@scure/btc-signer/utils.js";
 
-import { bytesToHex, concatBytes } from "./bytes.ts";
+import { bytesToHex, concatBytes, reverseBytes } from "./bytes.ts";
 import { DUST } from "./constants.ts";
 import { estimateFeeOwnerTransfer, estimateFeeReveal } from "./fees.ts";
 import { hash160 } from "./hash.ts";
@@ -29,6 +29,9 @@ import { addressToScriptPubKey, ownerH160FromAddress } from "./bech32.ts";
 import { deserializeTransaction, transactionId, txidToBytes } from "./tx.ts";
 import type { Transaction } from "./tx.ts";
 import type { FundingTransaction, Utxo } from "./txbuild.ts";
+
+/** scure's input `txid` is display order; bpub's txid bytes are internal order, so reverse on the way in. */
+const scureTxid = (internalTxid: Uint8Array): Uint8Array => reverseBytes(internalTxid);
 
 /** The result of any of the signing helpers below. */
 export interface SignedTransaction {
@@ -95,7 +98,7 @@ export async function signRevealTransaction(
   for (const input of inputs) {
     const scriptPubKey = await p2wshScriptPubKey(input.redeemScript);
     scureTx.addInput({
-      txid: txidToBytes(input.txid),
+      txid: scureTxid(txidToBytes(input.txid)),
       index: input.vout,
       witnessUtxo: { amount: BigInt(input.valueSats), script: scriptPubKey },
       witnessScript: input.redeemScript,
@@ -187,7 +190,7 @@ export async function signOwnerTransferTransaction(
     allowUnknownOutputs: true,
   });
   scureTx.addInput({
-    txid: txidToBytes(utxo.txid),
+    txid: scureTxid(txidToBytes(utxo.txid)),
     index: utxo.vout,
     witnessUtxo: { amount: BigInt(utxo.valueSats), script: scriptPubKey },
     sequence,
@@ -233,7 +236,7 @@ export async function signFundingTransaction(
 
   const scureTx = new ScureTransaction({ version: transaction.version, lockTime: transaction.lockTime });
   scureTx.addInput({
-    txid: input.prevTxid,
+    txid: scureTxid(input.prevTxid),
     index: input.prevIndex,
     witnessUtxo: { amount: BigInt(utxo.valueSats), script: spendScriptPubKey },
     sequence: input.sequence,

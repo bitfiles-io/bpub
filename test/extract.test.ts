@@ -8,6 +8,7 @@ import {
   decodeStream,
   deserializeTransaction,
   encodeStreamToPubkeys,
+  prevTxidHex,
   recoverFromRawTransaction,
   serializeTransaction,
   sha256,
@@ -23,6 +24,8 @@ const EXPECTED_TXID = "c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428b
 const EXPECTED_CONTROL_PUBKEY =
   "0388a5c118e856a90cf025cef167c00c224e96e2184229e450b6f59cd60dc2dda9";
 const EXPECTED_BPUB_ID = "6f0d177f3af04ba8c36c9373e034c8bcfa5816dc85d09d5b2e6d0b34a28927ef";
+/** The funding transaction every input spends, as the explorer displays it. */
+const EXPECTED_FUNDING_TXID = "c2314cd428da2d736abe1e95ebe2f3557ea5080d889ff5af95b5cb19691565f0";
 
 test("extracts luke.jpg from the reveal transaction", async () => {
   const { meta, content, controlPubkey, inputs } = await recoverFromRawTransaction(rawTxHex);
@@ -110,4 +113,12 @@ test("transaction round-trips and hashes to the published txid", async () => {
   assert.equal(tx.outputs.length, 1);
   assert.equal(bytesToHex(serializeTransaction(tx)), rawTxHex.toLowerCase());
   assert.equal(await transactionId(tx), EXPECTED_TXID);
+});
+
+test("previous txids read back in the order the explorer displays them", () => {
+  const tx = deserializeTransaction(rawTxHex);
+  tx.inputs.forEach((input, i) => {
+    assert.equal(prevTxidHex(input), EXPECTED_FUNDING_TXID, `input ${i} prevTxid`);
+    assert.equal(input.prevIndex, i);
+  });
 });
