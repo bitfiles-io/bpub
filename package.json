@@ -1,6 +1,6 @@
 {
   "name": "@bitfiles/bpub",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TypeScript port of the bpub Python library: read, write, and sign BPUB data inscriptions embedded in Bitcoin transactions. Isomorphic (Node + browser); standard Bitcoin plumbing and signing are built on @scure/btc-signer.",
   "type": "module",
   "main": "./dist/index.js",
