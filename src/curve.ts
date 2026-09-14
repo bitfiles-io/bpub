@@ -1,17 +1,11 @@
+import { pow as noblePow } from "@noble/curves/abstract/modular.js";
+
 import { CURVE_B, P } from "./constants.ts";
 
-/** Modular exponentiation over bigints (square-and-multiply). */
+/** Modular exponentiation over bigints, via `@noble/curves`'s field arithmetic. */
 export function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
   if (modulus <= 0n) throw new Error("modulus must be positive");
-  let result = 1n;
-  let b = ((base % modulus) + modulus) % modulus;
-  let e = exponent;
-  while (e > 0n) {
-    if (e & 1n) result = (result * b) % modulus;
-    b = (b * b) % modulus;
-    e >>= 1n;
-  }
-  return result;
+  return noblePow(((base % modulus) + modulus) % modulus, exponent, modulus);
 }
 
 /** True when `n` is a non-zero quadratic residue mod p (Euler's criterion). */

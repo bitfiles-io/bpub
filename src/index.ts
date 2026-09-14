@@ -7,9 +7,10 @@
  * transaction plumbing needed to read inscriptions back off-chain, and the
  * pure parts of the encode side.
  *
- * It has no runtime dependencies and works in Node (>= 22) and modern
- * browsers: hashing uses Web Crypto, DEFLATE uses Compression Streams, and
- * curve arithmetic uses `BigInt`.
+ * Reading and building inscriptions has no runtime dependencies and works in
+ * Node (>= 22) and modern browsers: hashing uses Web Crypto, DEFLATE uses
+ * Compression Streams, and curve arithmetic uses `BigInt`. Signing
+ * transactions (`sign*`) pulls in `@scure/btc-signer` for audited ECDSA.
  *
  * @example Extract a file from a reveal transaction
  * ```ts
@@ -139,3 +140,16 @@ export type {
   InscriptionOptions,
   Utxo,
 } from "./txbuild.ts";
+
+export {
+  signFundingTransaction,
+  signOwnerTransferTransaction,
+  signRevealTransaction,
+} from "./sign.ts";
+export type {
+  RevealInput,
+  SignedTransaction,
+  SignFundingTransactionOptions,
+  SignOwnerTransferTransactionOptions,
+  SignRevealTransactionOptions,
+} from "./sign.ts";

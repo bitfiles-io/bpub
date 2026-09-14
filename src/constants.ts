@@ -1,5 +1,7 @@
 /** Constants shared by the BPUB encoder and decoder (see docs/01_spec.md upstream). */
 
+import { OP } from "@scure/btc-signer/script.js";
+
 /** secp256k1 field prime: y^2 = x^3 + 7 over F_p. */
 export const P = 2n ** 256n - 2n ** 32n - 977n;
 
@@ -30,15 +32,15 @@ export const FLAG_METADATA = 0x02;
 /** Dust threshold used by the upstream funding-tx builder. */
 export const DUST = 546;
 
-export const OP_0 = 0x00;
-export const OP_1 = 0x51;
-export const OP_16 = 0x60;
-export const OP_PUSHDATA1 = 0x4c;
-export const OP_PUSHDATA2 = 0x4d;
-export const OP_PUSHDATA4 = 0x4e;
-export const OP_DROP = 0x75;
-export const OP_DUP = 0x76;
-export const OP_EQUALVERIFY = 0x88;
-export const OP_HASH160 = 0xa9;
-export const OP_CHECKSIG = 0xac;
-export const OP_CHECKMULTISIG = 0xae;
+export const OP_0 = OP.OP_0;
+export const OP_1 = OP.OP_1;
+export const OP_16 = OP.OP_16;
+export const OP_PUSHDATA1 = OP.PUSHDATA1;
+export const OP_PUSHDATA2 = OP.PUSHDATA2;
+export const OP_PUSHDATA4 = OP.PUSHDATA4;
+export const OP_DROP = OP.DROP;
+export const OP_DUP = OP.DUP;
+export const OP_EQUALVERIFY = OP.EQUALVERIFY;
+export const OP_HASH160 = OP.HASH160;
+export const OP_CHECKSIG = OP.CHECKSIG;
+export const OP_CHECKMULTISIG = OP.CHECKMULTISIG;

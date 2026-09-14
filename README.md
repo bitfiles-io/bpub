@@ -9,12 +9,19 @@ when the multisig outputs are spent, because the redeem scripts land in the
 witness.
 
 This port covers the data format (v3.5, v4 and v5 streams), the script and
-transaction plumbing needed to read inscriptions back off-chain, and the pure
-parts of the encode side.
+transaction plumbing needed to read inscriptions back off-chain, the pure
+parts of the encode side, and — unlike upstream's stated scope — signing the
+reveal, ownership-transfer, and funding transactions.
 
-- **Zero runtime dependencies.**
-- **Runs in Node (>= 22) and modern browsers**, unbundled: hashing uses Web
-  Crypto, DEFLATE uses Compression Streams, curve arithmetic uses `BigInt`.
+- **Runs in Node (>= 22) and modern browsers.** Standard Bitcoin plumbing
+  (hashing, transaction (de)serialisation, bech32/segwit addresses, ECDSA
+  signing) is built on the audited
+  [`@scure/btc-signer`](https://github.com/paulmillr/scure-btc-signer) /
+  `@noble` stack rather than reimplemented here; DEFLATE still uses
+  Compression Streams, since neither has a compression facility.
+- **BPUB's own bits stay bespoke**, because there's nothing to delegate to:
+  encoding data into valid-but-fake secp256k1 pubkeys (`curve.ts`,
+  `pubkeys.ts`), and the BPUB-specific script shapes and stream formats.
 - Verified against a real mainnet inscription (see [Tests](#tests)).
 
 ## Install
@@ -146,11 +153,63 @@ const funding = await buildFundingTransaction({
 | Addresses | `addressToScriptPubKey`, `scriptPubKeyToAddress`, `ownerH160FromAddress`, `addressFromOwnerH160`, `bech32Encode`, `bech32Decode`, `encodeSegwitAddress`, `decodeSegwitAddress` |
 | Transactions | `deserializeTransaction`, `serializeTransaction`, `transactionId`, `prevTxidHex`, `txidToBytes`, `encodeVarInt` |
 | Encoding | `buildInscription`, `buildFundingTransaction` |
+| Signing (uses `@scure/btc-signer`) | `signFundingTransaction`, `signRevealTransaction`, `signOwnerTransferTransaction` |
 | Fees | `estimateFee`, `estimateFeeFunding`, `estimateFeeReveal`, `estimateFeeOwnerTransfer` |
 | Primitives | `sha256`, `sha256d`, `hash160`, `ripemd160`, `rawDeflate`, `rawInflate`, `zlibDeflate`, `zlibInflate`, `modPow`, `sqrtModP`, `isQuadraticResidue`, `liftX` |
 
 Everything speaks `Uint8Array`, never Node `Buffer`. Functions that hash or
 compress are `async`, because Web Crypto and Compression Streams are.
+
+### Signing (funding, reveal, ownership transfer)
+
+`buildFundingTransaction` deliberately returns an unsigned transaction.
+Signing it, and building the reveal and ownership-transfer transactions, means
+producing valid ECDSA signatures — exactly the kind of code this project
+would rather borrow from an audited library than reimplement, which is why
+`@scure/btc-signer` handles it via these three functions:
+
+```ts
+import {
+  signFundingTransaction,
+  signRevealTransaction,
+  signOwnerTransferTransaction,
+} from "@bitfiles/bpub";
+
+// 1. Fund: sign buildFundingTransaction()'s single P2WPKH input.
+const funded = await signFundingTransaction({ funding, utxo, privateKey });
+
+// 2. Reveal: spend the funding tx's BPUB multisig outputs with the control
+//    key, putting each redeem script into the witness.
+const revealed = await signRevealTransaction({
+  inputs: inscription.redeemScripts.map((redeemScript, i) => ({
+    txid: fundingTxid,
+    vout: i,
+    valueSats: 546,
+    redeemScript,
+  })),
+  destinationAddress: "bc1q…",
+  controlPrivateKey,
+  feerate: 5,
+});
+
+// 3. Transfer v5 ownership to a new owner.
+const transferred = await signOwnerTransferTransaction({
+  bpubId: inscription.bpubId!,
+  ownerPrivateKey,
+  utxo: ownerUtxo,
+  newOwnerAddress: "bc1q…",
+  feerate: 5,
+});
+```
+
+Each call returns `{ transaction, rawHex, txid, feeSats }`, ready to
+broadcast. The multisig redeem script is a standard 1-of-N bare multisig, so
+`signRevealTransaction` and `signFundingTransaction` use `@scure/btc-signer`'s
+`Transaction` end to end. The v5 ownership redeem script is a nonstandard
+shape (a P2WPKH check wrapped with an extra `OP_DROP`) that the library's
+script recognition doesn't know about, so `signOwnerTransferTransaction`
+computes the BIP-143 sighash and signature with its lower-level pieces and
+assembles the witness by hand.
 
 ### Mapping from the Python library
 
@@ -160,6 +219,8 @@ compress are `async`, because Web Crypto and Compression Streams are.
 | `decodetransfer` | `decodeOwnerTransfer` |
 | `encode` / `decode` | `buildStreamV5` / `decodeStream` |
 | `txbuild` | `buildFundingTransaction` |
+| `fundpsbt` + `signreveal`/`signrevealutxo` | `signFundingTransaction`, `signRevealTransaction` |
+| `ownertransferpsbt` | `signOwnerTransferTransaction` |
 | `encode_stream_to_pubkeys` | `encodeStreamToPubkeys` |
 | `decode_pubkeys_to_stream` | `decodePubkeysToStream` |
 | `build_multisig_script` | `buildMultisigScript` |
@@ -168,11 +229,14 @@ compress are `async`, because Web Crypto and Compression Streams are.
 | `bech32_to_scriptpubkey` | `addressToScriptPubKey` |
 | `meta["bpub_version"]`, `meta["bpub_id"]` | `meta.bpubVersion`, `meta.bpubId` (camelCase) |
 
-Deliberately **not** ported: PSBT construction and signing (`fundpsbt`,
-`revealpsbt`, `signreveal`, `ownertransferpsbt`), the node RPC indexer, and the
-interactive wizard. Those need a wallet and a Bitcoin node, so they belong in
-the upstream CLI rather than in a library that also runs in a browser. Use
-`buildInscription` to get the scripts and drive signing with your own tooling.
+Deliberately **not** ported: the PSBT file format itself, the node RPC
+indexer, and the interactive wizard — those need a Bitcoin node or a
+human at a terminal, so they stay in the upstream CLI. Signing (`fundpsbt`,
+`revealpsbt`, `signreveal`, `ownertransferpsbt` upstream) *is* covered, as
+plain functions rather than PSBTs — see
+[Signing](#signing-funding-reveal-ownership-transfer) above. `buildInscription`
+still returns bare scripts if you'd rather drive signing with your own
+tooling (a hardware wallet, a PSBT-based flow, etc.).
 
 ### Known differences from upstream
 
@@ -209,7 +273,12 @@ and asserts more than "it didn't throw":
   `fetch` (no network calls; `BPUB_LIVE=1 npm test` adds a live fetch from
   the default chain);
 - round-trips for v3.5 / v4 / v5 streams, and a funding transaction spent by a
-  synthetic reveal transaction and read back.
+  synthetic reveal transaction and read back;
+- `signFundingTransaction`, `signRevealTransaction`, and
+  `signOwnerTransferTransaction` produce transactions that `recoverFromTransaction`
+  / `decodeOwnerTransfer` read back correctly, with signatures independently
+  checked against the BIP-143 sighash with `@noble/curves`, not just accepted
+  by this library's own (signature-agnostic) decoder.
 
 `examples/index.html` was also manually verified in Chrome on both chains,
 including the CORS proxy path and URL/back-button syncing.

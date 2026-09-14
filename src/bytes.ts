@@ -102,10 +102,3 @@ export function bytesToBigIntBE(bytes: Uint8Array): bigint {
   }
   return value;
 }
-
-/** Present a `Uint8Array` to Web APIs that want a plain `ArrayBuffer` view. */
-export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.length);
-  copy.set(bytes);
-  return copy.buffer;
-}
