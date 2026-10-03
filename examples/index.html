@@ -78,6 +78,23 @@
     <p id="source"></p>
     <div id="output"></div>
 
+    <!-- dist/ imports its dependencies by bare specifier; map them to the
+         local node_modules so the page works when served from the repo root
+         (npm run build && npm run serve). -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@scure/btc-signer": "../node_modules/@scure/btc-signer/index.js",
+          "@scure/btc-signer/": "../node_modules/@scure/btc-signer/",
+          "@scure/base": "../node_modules/@scure/base/index.js",
+          "@noble/curves/": "../node_modules/@noble/curves/",
+          "@noble/hashes/": "../node_modules/@noble/hashes/",
+          "micro-packed": "../node_modules/micro-packed/index.js",
+          "micro-packed/": "../node_modules/micro-packed/"
+        }
+      }
+    </script>
+
     <script type="module">
       import {
         bytesToHex,
