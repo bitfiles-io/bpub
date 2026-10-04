@@ -6,8 +6,17 @@
  * `fetchImpl` to stub it.
  */
 
+import {
+  assembleMultipart,
+  isManifestMeta,
+  isPartMeta,
+  manifestFileMeta,
+  parseManifest,
+} from "./manifest.ts";
+import type { BpubManifest } from "./manifest.ts";
 import { recoverFromRawTransaction } from "./recover.ts";
 import type { RecoverOptions, RecoverResult } from "./recover.ts";
+import type { BpubMeta } from "./stream.ts";
 
 /**
  * bpub content exists on two chains that fork from shared Bitcoin history:
@@ -180,4 +189,67 @@ export async function recoverFromTxid(
   const fetched = await fetchRawTransaction(txid, options);
   const result = await recoverFromRawTransaction(fetched.hex, options);
   return { ...result, txid: fetched.txid, source: fetched.source, chain: fetched.chain };
+}
+
+export interface MultipartFetchOptions extends FetchTransactionOptions {
+  /** Parts fetched at once. Defaults to 4. */
+  concurrency?: number;
+}
+
+export interface RecoveredMultipart {
+  manifest: BpubManifest;
+  /** Metadata of the reassembled file, shaped like a single v5 inscription's. */
+  meta: BpubMeta;
+  content: Uint8Array;
+}
+
+/**
+ * Fetch every part a manifest lists and reassemble the file.
+ *
+ * The source is trusted to serve the transaction each txid names, as
+ * elsewhere in this module.
+ */
+export async function recoverMultipartFromManifest(
+  manifest: BpubManifest,
+  options: MultipartFetchOptions = {},
+): Promise<RecoveredMultipart> {
+  const { concurrency = 4, ...fetchOptions } = options;
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new Error("concurrency must be a positive integer");
+  }
+
+  const contents: Uint8Array[] = new Array(manifest.parts.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < manifest.parts.length) {
+      const index = next++;
+      const txid = manifest.parts[index]!;
+      const part = await recoverFromTxid(txid, fetchOptions);
+      if (!isPartMeta(part.meta)) {
+        throw new Error(`part ${index} (${txid}) isn't a multipart part inscription`);
+      }
+      contents[index] = part.content;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, manifest.parts.length) }, worker));
+
+  return {
+    manifest,
+    meta: await manifestFileMeta(manifest),
+    content: await assembleMultipart(manifest, contents),
+  };
+}
+
+/** Fetch a manifest inscription by txid, then its parts, and reassemble the file. */
+export async function recoverMultipartFromTxid(
+  txid: string,
+  options: MultipartFetchOptions & RecoverOptions = {},
+): Promise<RecoveredMultipart & { txid: string; source: string; chain: Chain }> {
+  const result = await recoverFromTxid(txid, options);
+  if (!isManifestMeta(result.meta)) {
+    throw new Error(`${result.txid} isn't a multipart manifest inscription`);
+  }
+  const { controlPubkey: _, ...partOptions } = options;
+  const recovered = await recoverMultipartFromManifest(parseManifest(result.content), partOptions);
+  return { ...recovered, txid: result.txid, source: result.source, chain: result.chain };
 }

@@ -115,14 +115,39 @@ export {
   isRawTransactionHex,
   isTxid,
   recoverFromTxid,
+  recoverMultipartFromManifest,
+  recoverMultipartFromTxid,
   resolveRawTransaction,
 } from "./fetch.ts";
 export type {
   Chain,
   FetchedTransaction,
   FetchTransactionOptions,
+  MultipartFetchOptions,
+  RecoveredMultipart,
   ResolvedTransaction,
 } from "./fetch.ts";
+
+export {
+  MULTIPART_MANIFEST_MIME,
+  MULTIPART_MANIFEST_VERSION,
+  MULTIPART_PART_MIME,
+  assembleMultipart,
+  buildManifest,
+  encodeManifest,
+  isManifestMeta,
+  isPartMeta,
+  manifestFileMeta,
+  parseManifest,
+  planMultipart,
+} from "./manifest.ts";
+export type {
+  BpubManifest,
+  ManifestFields,
+  MultipartCompression,
+  MultipartPlan,
+  MultipartPlanOptions,
+} from "./manifest.ts";
 
 export {
   estimateFee,

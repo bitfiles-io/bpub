@@ -145,13 +145,90 @@ const funding = await buildFundingTransaction({
 });
 ```
 
+## Multipart files
+
+A reveal transaction has to stay under the 400,000 WU standardness limit, so
+one inscription holds about 217 KB of stream. Larger files are split across
+several *part* inscriptions and tied together by a *manifest* inscription,
+whose txid is the file's link. Both are ordinary v5 inscriptions, so the
+stream format doesn't change; readers that don't know about manifests just
+see a JSON file.
+
+```ts
+import {
+  MULTIPART_MANIFEST_MIME,
+  MULTIPART_PART_MIME,
+  buildInscription,
+  buildManifest,
+  encodeManifest,
+  planMultipart,
+} from "@bitfiles/bpub";
+
+// Compresses the whole file once (when that helps), then slices it so each
+// part's v5 stream fits in maxStreamBytes.
+const plan = await planMultipart(fileBytes, { maxStreamBytes: 217_000 });
+
+const partTxids = [];
+for (const part of plan.parts) {
+  const inscription = await buildInscription(part, { mime: MULTIPART_PART_MIME, controlPubkey });
+  partTxids.push(await fundAndReveal(inscription)); // your wallet flow
+}
+
+const manifest = buildManifest(plan, partTxids, { mime: "video/mp4", filename: "clip.mp4" });
+const manifestInscription = await buildInscription(encodeManifest(manifest), {
+  mime: MULTIPART_MANIFEST_MIME,
+  compress: true,
+  controlPubkey,
+});
+```
+
+Reading one back:
+
+```ts
+import { isManifestMeta, recoverFromTxid, recoverMultipartFromTxid } from "@bitfiles/bpub";
+
+const single = await recoverFromTxid(txid, { chain: "btc" });
+if (isManifestMeta(single.meta)) {
+  const { meta, content } = await recoverMultipartFromTxid(txid, { chain: "btc" });
+}
+```
+
+`recoverMultipartFromManifest` does the same from an already-parsed manifest,
+and `parseManifest` + `assembleMultipart` do it without any network access.
+
+The manifest (mime `application/vnd.bpub.manifest+json`) is JSON:
+
+```json
+{
+  "bpub_manifest": 1,
+  "mime": "video/mp4",
+  "filename": "clip.mp4",
+  "size": 1048576,
+  "sha256": "<sha256 of the reassembled, uncompressed file>",
+  "compression": "deflate-raw",
+  "parts": ["<txid>", "<txid>"]
+}
+```
+
+- Parts are inscribed with mime `application/vnd.bpub.part` and no stream
+  compression. Their contents, joined in order, are the file, raw-DEFLATE
+  compressed when `compression` is `"deflate-raw"`.
+- Each part's stream header already commits to that part's SHA-256, so the
+  manifest lists only txids. Readers check the reassembled file against the
+  manifest's `size` and `sha256`.
+- The file's v5 bpub id, `sha256("BPUB5" || sha256 || size_be_8)`, is derived
+  from `sha256` and `size`, so a multipart file has the same id it would have
+  had as a single inscription. `manifestFileMeta` returns it in a `BpubMeta`.
+- Parts must be on the same chain as their manifest.
+
 ## API
 
 | Area | Exports |
 | --- | --- |
 | Recovery | `recoverFromRawTransaction`, `recoverFromTransaction`, `recoverFromTxid`, `decodeOwnerTransfer` |
-| Fetching | `fetchRawTransaction`, `resolveRawTransaction`, `recoverFromTxid`, `isTxid`, `isRawTransactionHex`, `isChain`, `CHAIN_SOURCES`, `DEFAULT_CHAIN` |
+| Fetching | `fetchRawTransaction`, `resolveRawTransaction`, `recoverFromTxid`, `recoverMultipartFromTxid`, `recoverMultipartFromManifest`, `isTxid`, `isRawTransactionHex`, `isChain`, `CHAIN_SOURCES`, `DEFAULT_CHAIN` |
 | Streams | `buildStreamV35`, `buildStreamV4`, `buildStreamV5`, `decodeStream`, `computeBpubV5Id`, `xorObfuscate` |
+| Multipart | `planMultipart`, `buildManifest`, `encodeManifest`, `parseManifest`, `assembleMultipart`, `manifestFileMeta`, `isManifestMeta`, `isPartMeta`, `MULTIPART_MANIFEST_MIME`, `MULTIPART_PART_MIME`, `MULTIPART_MANIFEST_VERSION` |
 | Pubkey coding | `encodeStreamToPubkeys`, `decodePubkeysToStream`, `chunkDataPubkeys` |
 | Scripts | `buildMultisigScript`, `parseBpubMultisigScript`, `buildOwnerRedeemScript`, `decodeOwnerRedeemScript`, `p2wshScriptPubKey`, `p2wpkhScriptPubKey`, `parseScript`, `pushData`, `smallIntFromOp` |
 | Addresses | `addressToScriptPubKey`, `scriptPubKeyToAddress`, `ownerH160FromAddress`, `addressFromOwnerH160`, `bech32Encode`, `bech32Decode`, `encodeSegwitAddress`, `decodeSegwitAddress` |
