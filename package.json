@@ -35,7 +35,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test 'test/*.test.ts'",
-    "serve": "node --version >/dev/null && npx --yes http-server . -p 8099 -c-1"
+    "dev": "vite",
+    "build:site": "vite build",
+    "preview": "vite preview"
   },
   "engines": {
     "node": ">=22.6"
@@ -48,6 +50,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vite": "^8.3.2"
   }
 }

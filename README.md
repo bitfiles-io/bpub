@@ -100,17 +100,25 @@ Runnable examples:
   node examples/extract.mjs data/transaction.txt out.jpg
   ```
 
-- `examples/index.html` — browser viewer with a chain dropdown (`btcb2` by
-  default) and a single input that accepts a **txid or raw transaction
-  hex**. Serve the repo root and open `/examples/index.html`; it autoloads
-  the sample txid on `btcb2` and renders the image.
+Browser viewer (`website/`, deployed to https://bpub.bitfiles.io):
 
-  The textbox and chain selection are mirrored into the URL's hash fragment,
-  so any view is shareable, e.g.
-  `examples/index.html#btcb2/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e`.
+- `website/index.html` — viewer with a chain dropdown (`btcb2` by default)
+  and a single input that accepts a **txid or raw transaction hex**. It
+  imports the library from `src/` and is built with Vite:
+
+  ```sh
+  npm run dev          # dev server with hot reload
+  npm run build:site   # production build into website/dist
+  npm run preview      # serve the production build
+  ```
+
+  It autoloads the sample txid on `btcb2` and renders the image. The textbox
+  and chain selection are mirrored into the URL's hash fragment, so any view
+  is shareable, e.g.
+  `https://bpub.bitfiles.io/#btcb2/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e`.
   "Copy link" copies the current URL.
 
-- `examples/cors-proxy-worker.js` — a self-hosted Cloudflare Worker that adds
+- `website/cors-proxy-worker.js` — a self-hosted Cloudflare Worker that adds
   CORS headers for fetching `"btcb2"` txids in a browser. Deploy instructions
   are in the file's header comment.
 
@@ -280,7 +288,7 @@ and asserts more than "it didn't throw":
   checked against the BIP-143 sighash with `@noble/curves`, not just accepted
   by this library's own (signature-agnostic) decoder.
 
-`examples/index.html` was also manually verified in Chrome on both chains,
+`website/index.html` was also manually verified in Chrome on both chains,
 including the CORS proxy path and URL/back-button syncing.
 
 ## License

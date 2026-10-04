@@ -23,15 +23,10 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run build
-      - run: |
-          mkdir -p _site
-          cp -r dist _site/dist
-          sed 's#\.\./dist/#./dist/#' examples/index.html > _site/index.html
-          echo "bpub.bitfiles.io" > _site/CNAME
+      - run: npm run build:site
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: website/dist
 
   deploy:
     needs: build

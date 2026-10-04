@@ -22,10 +22,10 @@
  *   4. Click "Edit code" and replace the contents with this file. Deploy.
  *   5. Copy the resulting URL (https://<name>.<your-subdomain>.workers.dev).
  *   6. Paste it into `CORS_PROXY_WORKER_URL` near the top of the <script> in
- *      examples/index.html.
+ *      website/index.html.
  *
  * (`wrangler deploy` works too, if you'd rather use the CLI: `npx wrangler
- * deploy examples/cors-proxy-worker.js --name bpub-cors-proxy --compatibility-date 2025-01-01`.)
+ * deploy website/cors-proxy-worker.js --name bpub-cors-proxy --compatibility-date 2025-01-01`.)
  */
 
 const UPSTREAM = "https://mempool.guide";

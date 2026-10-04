@@ -78,23 +78,6 @@
     <p id="source"></p>
     <div id="output"></div>
 
-    <!-- dist/ imports its dependencies by bare specifier; map them to the
-         local node_modules so the page works when served from the repo root
-         (npm run build && npm run serve). -->
-    <script type="importmap">
-      {
-        "imports": {
-          "@scure/btc-signer": "../node_modules/@scure/btc-signer/index.js",
-          "@scure/btc-signer/": "../node_modules/@scure/btc-signer/",
-          "@scure/base": "../node_modules/@scure/base/index.js",
-          "@noble/curves/": "../node_modules/@noble/curves/",
-          "@noble/hashes/": "../node_modules/@noble/hashes/",
-          "micro-packed": "../node_modules/micro-packed/index.js",
-          "micro-packed/": "../node_modules/micro-packed/"
-        }
-      }
-    </script>
-
     <script type="module">
       import {
         bytesToHex,
@@ -103,11 +86,11 @@
         isTxid,
         recoverFromRawTransaction,
         resolveRawTransaction,
-      } from "../dist/index.js";
+      } from "../src/index.ts";
 
       const SAMPLE_TXID = "c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e";
 
-      // Fill this in after deploying examples/cors-proxy-worker.js as your own
+      // Fill this in after deploying website/cors-proxy-worker.js as your own
       // Cloudflare Worker (free, ~2 minutes, see that file's header comment
       // for deploy steps), e.g. "https://bpub-cors-proxy.example.workers.dev".
       // Left empty, "btcb2" txid lookups fall back to a direct fetch, which
@@ -173,7 +156,7 @@
       }
 
       // Relay a mempool.guide API URL through the self-hosted worker
-      // (examples/cors-proxy-worker.js): swap the origin, keep the path — the
+      // (website/cors-proxy-worker.js): swap the origin, keep the path — the
       // worker only ever serves that same path back from mempool.guide with
       // CORS headers added, so no query-string wrapping/unwrapping is needed.
       async function fetchViaOwnWorker(url) {
