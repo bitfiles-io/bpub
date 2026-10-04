@@ -90,18 +90,6 @@
 
       const SAMPLE_TXID = "c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e";
 
-      // Fill this in after deploying website/cors-proxy-worker.js as your own
-      // Cloudflare Worker (free, ~2 minutes, see that file's header comment
-      // for deploy steps), e.g. "https://bpub-cors-proxy.example.workers.dev".
-      // Left empty, "btcb2" txid lookups fall back to a direct fetch, which
-      // is CORS-blocked in browsers (mempool.guide sends no
-      // Access-Control-Allow-Origin) — paste raw hex instead in that case.
-      // Free anonymous public CORS proxies (corsproxy.io, api.allorigins.win)
-      // were tried first but both turned out unreliable in practice: one now
-      // requires a paid API key, the other intermittently times out. A
-      // self-hosted worker removes that dependency on someone else's uptime.
-      const CORS_PROXY_WORKER_URL = "https://bpub-cors-proxy.alpha-21.workers.dev";
-
       const inputEl = document.querySelector("#input");
       const chainEl = document.querySelector("#chain");
       const statusEl = document.querySelector("#status");
@@ -155,18 +143,6 @@
         }
       }
 
-      // Relay a mempool.guide API URL through the self-hosted worker
-      // (website/cors-proxy-worker.js): swap the origin, keep the path — the
-      // worker only ever serves that same path back from mempool.guide with
-      // CORS headers added, so no query-string wrapping/unwrapping is needed.
-      async function fetchViaOwnWorker(url) {
-        const path = new URL(url).pathname;
-        const res = await fetch(CORS_PROXY_WORKER_URL.replace(/\/+$/, "") + path);
-        const text = await res.text();
-        if (!res.ok) throw new Error(`Fetch failed (HTTP ${res.status}): ${text.slice(0, 120)}`.trim());
-        return text;
-      }
-
       async function extract() {
         outputEl.innerHTML = "";
         sourceEl.textContent = "";
@@ -179,12 +155,8 @@
         try {
           let resolved;
           if (isTxid(value)) {
-            const useWorker = chain === "btcb2" && CORS_PROXY_WORKER_URL;
             setStatus(`Fetching transaction from ${chain}…`);
-            resolved = await resolveRawTransaction(value, {
-              chain,
-              fetchText: useWorker ? fetchViaOwnWorker : undefined,
-            });
+            resolved = await resolveRawTransaction(value, { chain });
             sourceEl.replaceChildren(
               "Transaction fetched from ",
               Object.assign(document.createElement("a"), {

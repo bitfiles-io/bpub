@@ -49,7 +49,7 @@ test("isTxid and isRawTransactionHex classify inputs", () => {
 
 test("CHAIN_SOURCES maps each chain to exactly one explorer, defaulting to btcb2", () => {
   assert.equal(CHAIN_SOURCES.btc, "https://mempool.space");
-  assert.equal(CHAIN_SOURCES.btcb2, "https://mempool.guide");
+  assert.equal(CHAIN_SOURCES.btcb2, "https://mempool.kilombino.com");
   assert.equal(DEFAULT_CHAIN, "btcb2");
 });
 
@@ -61,14 +61,14 @@ test("isChain validates chain identifiers", () => {
   assert.equal(isChain(""), false);
 });
 
-test("fetchRawTransaction defaults to btcb2 (mempool.guide) when no chain is given", async () => {
-  const { fetchImpl, calls } = stubFetch({ "https://mempool.guide": { body: `${rawTxHex}\n` } });
+test("fetchRawTransaction defaults to btcb2 (mempool.kilombino.com) when no chain is given", async () => {
+  const { fetchImpl, calls } = stubFetch({ "https://mempool.kilombino.com": { body: `${rawTxHex}\n` } });
   const fetched = await fetchRawTransaction(TXID, { fetchImpl });
   assert.equal(fetched.chain, "btcb2");
-  assert.equal(fetched.source, "https://mempool.guide");
+  assert.equal(fetched.source, "https://mempool.kilombino.com");
   assert.equal(fetched.txid, TXID);
   assert.equal(fetched.hex, rawTxHex.toLowerCase());
-  assert.deepEqual(calls, [`https://mempool.guide/api/tx/${TXID}/hex`]);
+  assert.deepEqual(calls, [`https://mempool.kilombino.com/api/tx/${TXID}/hex`]);
 });
 
 test("fetchRawTransaction fetches from mempool.space when chain is btc", async () => {
@@ -81,31 +81,30 @@ test("fetchRawTransaction fetches from mempool.space when chain is btc", async (
 
 test("there is no fallback: a failing btcb2 source is not retried against btc", async () => {
   const { fetchImpl, calls } = stubFetch({
-    "https://mempool.guide": { throws: "Failed to fetch" },
+    "https://mempool.kilombino.com": { throws: "Failed to fetch" },
     "https://mempool.space": { body: rawTxHex }, // would succeed, must NOT be tried
   });
   await assert.rejects(() => fetchRawTransaction(TXID, { fetchImpl, chain: "btcb2" }));
   assert.equal(calls.length, 1, "exactly one request should be made, no fallback");
-  assert.deepEqual(calls, [`https://mempool.guide/api/tx/${TXID}/hex`]);
+  assert.deepEqual(calls, [`https://mempool.kilombino.com/api/tx/${TXID}/hex`]);
 });
 
-test("a failed btcb2 fetch reports the chain, source, and a CORS hint", async () => {
+test("a failed btcb2 fetch reports the chain and source", async () => {
   const { fetchImpl } = stubFetch({
-    "https://mempool.guide": { status: 404, body: "Transaction not found" },
+    "https://mempool.kilombino.com": { status: 404, body: "Transaction not found" },
   });
   await assert.rejects(
     () => fetchRawTransaction(TXID, { fetchImpl, chain: "btcb2" }),
     (error: Error) => {
       assert.match(error.message, /chain "btcb2"/);
-      assert.match(error.message, /mempool\.guide/);
+      assert.match(error.message, /mempool\.kilombino\.com/);
       assert.match(error.message, /HTTP 404/);
-      assert.match(error.message, /does not send Access-Control-Allow-Origin/);
       return true;
     },
   );
 });
 
-test("a failed btc fetch reports the chain and source without the btcb2 CORS hint", async () => {
+test("a failed btc fetch reports the chain and source", async () => {
   const { fetchImpl } = stubFetch({
     "https://mempool.space": { status: 404, body: "Transaction not found" },
   });
@@ -115,7 +114,6 @@ test("a failed btc fetch reports the chain and source without the btcb2 CORS hin
       assert.match(error.message, /chain "btc"/);
       assert.match(error.message, /mempool\.space/);
       assert.match(error.message, /HTTP 404/);
-      assert.doesNotMatch(error.message, /Access-Control-Allow-Origin/);
       return true;
     },
   );
@@ -154,9 +152,9 @@ test("options.fetchText replaces the default fetch, receiving the direct API URL
     return `${rawTxHex}\n`; // real CORS proxies may add trailing whitespace
   };
   const fetched = await fetchRawTransaction(TXID, { chain: "btcb2", fetchText });
-  assert.equal(fetched.source, "https://mempool.guide");
+  assert.equal(fetched.source, "https://mempool.kilombino.com");
   assert.equal(fetched.hex, rawTxHex.toLowerCase());
-  assert.deepEqual(requestedUrls, [`https://mempool.guide/api/tx/${TXID}/hex`]);
+  assert.deepEqual(requestedUrls, [`https://mempool.kilombino.com/api/tx/${TXID}/hex`]);
 });
 
 test("options.fetchText need not touch options.fetchImpl at all", async () => {
@@ -172,7 +170,7 @@ test("options.fetchText need not touch options.fetchImpl at all", async () => {
   assert.equal(fetched.hex, rawTxHex.toLowerCase());
 });
 
-test("a failing fetchText reports the chain and source, without the CORS hint", async () => {
+test("a failing fetchText reports the chain and source", async () => {
   await assert.rejects(
     () =>
       fetchRawTransaction(TXID, {
@@ -183,13 +181,8 @@ test("a failing fetchText reports the chain and source, without the CORS hint", 
       }),
     (error: Error) => {
       assert.match(error.message, /chain "btcb2"/);
-      assert.match(error.message, /mempool\.guide/);
+      assert.match(error.message, /mempool\.kilombino\.com/);
       assert.match(error.message, /proxy HTTP 502/);
-      assert.doesNotMatch(
-        error.message,
-        /Access-Control-Allow-Origin/,
-        "the direct-fetch CORS hint should not appear when a custom transport was supplied",
-      );
       return true;
     },
   );
@@ -203,12 +196,12 @@ test("fetchText output is still validated as raw transaction hex", async () => {
 });
 
 test("resolveRawTransaction threads chain through to fetchRawTransaction", async () => {
-  const { fetchImpl, calls } = stubFetch({ "https://mempool.guide": { body: rawTxHex } });
+  const { fetchImpl, calls } = stubFetch({ "https://mempool.kilombino.com": { body: rawTxHex } });
 
   const fromTxid = await resolveRawTransaction(TXID, { fetchImpl });
   assert.equal(fromTxid.hex, rawTxHex.toLowerCase());
   assert.equal(fromTxid.txid, TXID);
-  assert.equal(fromTxid.source, "https://mempool.guide");
+  assert.equal(fromTxid.source, "https://mempool.kilombino.com");
   assert.equal(fromTxid.chain, "btcb2", "default chain when none is given");
 
   const fromHex = await resolveRawTransaction(rawTxHex, { fetchImpl, chain: "btc" });
@@ -227,18 +220,18 @@ test("resolveRawTransaction threads chain through to fetchRawTransaction", async
 });
 
 test("recoverFromTxid fetches from the given chain and extracts in one call", async () => {
-  const { fetchImpl } = stubFetch({ "https://mempool.guide": { body: rawTxHex } });
+  const { fetchImpl } = stubFetch({ "https://mempool.kilombino.com": { body: rawTxHex } });
   const result = await recoverFromTxid(TXID, { fetchImpl });
   assert.equal(result.txid, TXID);
   assert.equal(result.chain, "btcb2");
-  assert.equal(result.source, "https://mempool.guide");
+  assert.equal(result.source, "https://mempool.kilombino.com");
   assert.equal(result.meta.filename, "luke.jpg");
   assert.deepEqual(result.content, expectedImage);
 });
 
 // Opt-in live check: BPUB_LIVE=1 npm test
 test(
-  "live: fetches the sample transaction from the default chain (btcb2/mempool.guide)",
+  "live: fetches the sample transaction from the default chain (btcb2/mempool.kilombino.com)",
   { skip: process.env["BPUB_LIVE"] !== "1" ? "set BPUB_LIVE=1 to enable" : false },
   async () => {
     const result = await recoverFromTxid(TXID);

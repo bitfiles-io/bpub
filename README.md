@@ -118,10 +118,6 @@ Browser viewer (`website/`, deployed to https://bpub.bitfiles.io):
   `https://bpub.bitfiles.io/#btcb2/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e`.
   "Copy link" copies the current URL.
 
-- `website/cors-proxy-worker.js` — a self-hosted Cloudflare Worker that adds
-  CORS headers for fetching `"btcb2"` txids in a browser. Deploy instructions
-  are in the file's header comment.
-
 ## Encode a file
 
 ```ts
@@ -266,7 +262,7 @@ npm test
 ```
 
 The suite runs against the real mainnet inscription in `data/`
-([tx `c6c37101…bbf6197e`](https://mempool.guide/tx/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e)),
+([tx `c6c37101…bbf6197e`](https://mempool.kilombino.com/tx/c6c3710169c5d8516cb45a70d2278fdadb04f21c82840703238ae428bbf6197e)),
 and asserts more than "it didn't throw":
 
 - the recovered bytes are **byte-identical to `data/luke.jpg`**, with the
@@ -289,7 +285,7 @@ and asserts more than "it didn't throw":
   by this library's own (signature-agnostic) decoder.
 
 `website/index.html` was also manually verified in Chrome on both chains,
-including the CORS proxy path and URL/back-button syncing.
+including URL/back-button syncing.
 
 ## License
 

@@ -25,7 +25,7 @@ export type Chain = "btc" | "btcb2";
 /** The one authoritative source per chain. */
 export const CHAIN_SOURCES: Readonly<Record<Chain, string>> = {
   btc: "https://mempool.space",
-  btcb2: "https://mempool.guide",
+  btcb2: "https://mempool.kilombino.com",
 };
 
 /** Chain used when none is specified. */
@@ -57,10 +57,9 @@ export interface FetchTransactionOptions {
    * URL that would otherwise be requested, resolving to the raw transaction
    * hex text.
    *
-   * Use this to route around CORS in a browser (e.g. `mempool.guide`, the
-   * `"btcb2"` source, sends no `Access-Control-Allow-Origin` header) via a
-   * CORS proxy, without the library needing to know that proxy's URL scheme
-   * or response shape (some return the raw body directly; others, like
+   * Use this to route through a proxy (e.g. for a source that sends no
+   * `Access-Control-Allow-Origin` header, in a browser) without the library
+   * needing to know that proxy's URL scheme or response shape (some return the raw body directly; others, like
    * `api.allorigins.win/get`, wrap it in JSON under a `contents` field — this
    * hook lets the caller handle either).
    */
@@ -107,19 +106,7 @@ export async function fetchRawTransaction(
   const url = `${source}/api/tx/${clean}/hex`;
 
   const fail = (detail: string): never => {
-    // The hint only applies to the default direct-fetch path: a caller who
-    // supplied `fetchText` has presumably already worked around CORS, so a
-    // failure there is proxy-specific, not "your browser blocked this".
-    const corsHint =
-      chain === "btcb2" && !fetchText
-        ? "\n  mempool.guide does not send Access-Control-Allow-Origin, so this " +
-          "request fails in browsers even when the transaction exists; paste " +
-          "the raw transaction hex instead of a txid, or pass options.fetchText " +
-          "to route through a CORS proxy."
-        : "";
-    throw new Error(
-      `could not fetch ${clean} for chain "${chain}" from ${source}: ${detail}${corsHint}`,
-    );
+    throw new Error(`could not fetch ${clean} for chain "${chain}" from ${source}: ${detail}`);
   };
 
   let body: string;
